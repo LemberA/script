@@ -1,0 +1,183 @@
+version: "3.7"
+
+services:
+  elastic_master:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.5.3
+    container_name: elastic_master
+    network_mode: "host"
+    restart: always
+    environment:
+      - "node.name=elastic_master1"
+      - "discovery.seed_hosts=10.10.10.121:9303,10.10.10.121:9302,10.10.10.121:9300,10.10.10.119:9303,10.10.10.119:9302,10.10.10.119:9300,10.10.10.118:9303,10.10.10.118:9302"
+      - node.roles=["master"]
+      - http.port=9200
+      - network.host=10.10.10.118
+      - transport.host=10.10.10.118
+      - transport.port=9300
+      - "xpack.security.enabled=false"
+      - "xpack.security.http.ssl.enabled=false"
+      - "cluster.initial_master_nodes=elastic_master1,elastic_master2,elastic_master3"
+      - "xpack.security.transport.ssl.enabled=false"
+      - "xpack.ml.enabled=false"
+      - "xpack.graph.enabled=false"
+      - "xpack.watcher.enabled=false"
+      - "ingest.geoip.downloader.enabled=false"
+      - indices.id_field_data.enabled=true
+      - "bootstrap.memory_lock=true"
+      - path.data=/usr/share/elasticsearch/data
+      - path.logs=/usr/share/elasticsearch/logs
+#      - action.destructive_requires_name=true
+      - indices.memory.index_buffer_size=30%
+      - indices.query.bool.max_clause_count=50000
+      - "ES_JAVA_OPTS=-Xms8g -Xmx8g -XX:HeapDumpPath=data -XX:UseAVX=0 -XX:+AlwaysPreTouch -server -Xss1m -Djava.awt.headless=true -Dfile.encoding=UTF-8 -Djna.nosys=true -Djdk.io.permissionsUseCanonicalPath=true -Dio.netty.noUnsafe=true -Dio.netty.noKeySetOptimization=true -Dio.netty.recycler.maxCapacityPerThread=0 -Dlog4j.shutdownHookEnabled=false -Dlog4j2.disable.jmx=true -Dlog4j.skipJansi=true -XX:+HeapDumpOnOutOfMemoryError -XX:+UnlockDiagnosticVMOptions -Xlog:gc+heap+coops=info -Des.path.home=/usr/share/elasticsearch"
+      - "MAX_LOCKED_MEMORY=unlimited"
+      - "TAKE_FILE_OWNERSHIP=true"
+      - "ES_TMPDIR=/usr/share/elasticsearch/estmp"
+      - "oom-kill-disable"
+      - cluster.name=docker-cluster
+    user: elasticsearch
+    command: >
+      /bin/bash -c "[ -e plugins_installed ] || { ./bin/elasticsearch-keystore create && echo 'AKIAUXJI7BQVUARN3V5N' | ./bin/elasticsearch-keystore add --stdin s3.client.default.access_key && echo 'uGSLYFX40X3RqhI5QFOUkQDPQs987L3YGzdhPyPZ' | ./bin/elasticsearch-keystore add --stdin s3.client.default.secret_key; ./bin/elasticsearch-plugin install analysis-icu; ./bin/elasticsearch-plugin install analysis-phonetic; touch plugins_installed; /usr/local/bin/docker-entrypoint.sh; } && { /usr/local/bin/docker-entrypoint.sh; } "
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65535
+        hard: 65535
+      nproc: 65535
+    healthcheck:
+      test: curl -fs http://10.10.10.118:9200/_cat/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    volumes:
+      - /opt/elastic/master/data:/usr/share/elasticsearch/data
+      - /opt/elastic/master/logs:/usr/share/elasticsearch/logs
+      - /opt/elastic/master/tmp:/usr/share/elasticsearch/estmp
+
+  elastic_ingest:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.5.3
+    network_mode: "host"
+    container_name: elastic_ingest
+    restart: always
+    depends_on:
+      - elastic_data
+    environment:
+      - discovery.seed_hosts=10.10.10.121:9303,10.10.10.121:9302,10.10.10.121:9300,10.10.10.119:9303,10.10.10.119:9302,10.10.10.119:9300,10.10.10.118:9302,10.10.10.118:9300
+      - node.roles=["ingest"]
+      - node.name=elastic_ingest1
+      - http.port=9203
+      - network.host=10.10.10.118
+      - transport.host=10.10.10.118
+      - transport.port=9303
+      - "xpack.security.enabled=false"
+      - "xpack.security.http.ssl.enabled=false"
+      - "cluster.initial_master_nodes=elastic_master1,elastic_master2,elastic_master3"
+      - "xpack.security.transport.ssl.enabled=false"
+      - "xpack.ml.enabled=false"
+      - "xpack.graph.enabled=false"
+      - "xpack.watcher.enabled=false"
+      - "ingest.geoip.downloader.enabled=false"
+      - indices.id_field_data.enabled=true
+      - "bootstrap.memory_lock=true"
+      - path.data=/usr/share/elasticsearch/data
+      - path.logs=/usr/share/elasticsearch/logs
+#      - action.destructive_requires_name=true
+      - indices.memory.index_buffer_size=30%
+      - indices.query.bool.max_clause_count=50000
+      - "ES_JAVA_OPTS=-Xms8g -Xmx8g -XX:HeapDumpPath=data -XX:UseAVX=0 -XX:+AlwaysPreTouch -server -Xss1m -Djava.awt.headless=true -Dfile.encoding=UTF-8 -Djna.nosys=true -Djdk.io.permissionsUseCanonicalPath=true -Dio.netty.noUnsafe=true -Dio.netty.noKeySetOptimization=true -Dio.netty.recycler.maxCapacityPerThread=0 -Dlog4j.shutdownHookEnabled=false -Dlog4j2.disable.jmx=true -Dlog4j.skipJansi=true -XX:+HeapDumpOnOutOfMemoryError -XX:+UnlockDiagnosticVMOptions -Xlog:gc+heap+coops=info -Des.path.home=/usr/share/elasticsearch"
+      - "MAX_LOCKED_MEMORY=unlimited"
+      - "TAKE_FILE_OWNERSHIP=ES"
+      - "true_TMPDIR=/usr/share/elasticsearch/estmp"
+      - "oom-kill-disable"
+      - cluster.name=docker-cluster
+    user: elasticsearch
+    command: >
+      /bin/bash -c "[ -e plugins_installed ] || { ./bin/elasticsearch-keystore create && echo 'AKIAUXJI7BQVUARN3V5N' | ./bin/elasticsearch-keystore add --stdin s3.client.default.access_key && echo 'uGSLYFX40X3RqhI5QFOUkQDPQs987L3YGzdhPyPZ' | ./bin/elasticsearch-keystore add --stdin s3.client.default.secret_key; ./bin/elasticsearch-plugin install analysis-icu; ./bin/elasticsearch-plugin install analysis-phonetic; touch plugins_installed; /usr/local/bin/docker-entrypoint.sh; } && { /usr/local/bin/docker-entrypoint.sh; } "
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65535
+        hard: 65535
+      nproc: 65535
+    healthcheck:
+      test: curl -fs http://10.10.10.118:9203/_cat/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    volumes:
+      - /opt/elastic/ingest/data:/usr/share/elasticsearch/data
+      - /opt/elastic/ingest/logs:/usr/share/elasticsearch/logs
+      - /opt/elastic/ingest/tmp:/usr/share/elasticsearch/estmp
+
+  elastic_data:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.5.3
+    container_name: elastic_data
+    network_mode: "host"
+    restart: always
+    depends_on:
+      - elastic_master
+    environment:
+      - discovery.seed_hosts=10.10.10.121:9303,10.10.10.121:9302,10.10.10.121:9300,10.10.10.119:9303,10.10.10.119:9302,10.10.10.119:9300,10.10.10.118:9303,10.10.10.118:9300
+      - node.roles=["data"]
+      - node.name=elastic_data1
+      - http.port=9202
+      - network.host=10.10.10.118
+      - transport.host=10.10.10.118
+      - "xpack.security.enabled=false"
+      - "xpack.security.http.ssl.enabled=false"
+      - "cluster.initial_master_nodes=elastic_master1,elastic_master2,elastic_master3"
+      - "xpack.security.transport.ssl.enabled=false"
+      - "xpack.ml.enabled=false"
+      - "xpack.graph.enabled=false"
+      - "xpack.watcher.enabled=false"
+      - "ingest.geoip.downloader.enabled=false"
+      - indices.id_field_data.enabled=true
+      - "bootstrap.memory_lock=true"
+      - path.data=/usr/share/elasticsearch/data
+      - path.logs=/usr/share/elasticsearch/logs
+#      - action.destructive_requires_name=true
+      - indices.memory.index_buffer_size=30%
+      - indices.query.bool.max_clause_count=50000
+      - "ES_JAVA_OPTS=-Xms8g -Xmx8g -XX:HeapDumpPath=data -XX:UseAVX=0 -XX:+AlwaysPreTouch -server -Xss1m -Djava.awt.headless=true -Dfile.encoding=UTF-8 -Djna.nosys=true -Djdk.io.permissionsUseCanonicalPath=true -Dio.netty.noUnsafe=true -Dio.netty.noKeySetOptimization=true -Dio.netty.recycler.maxCapacityPerThread=0 -Dlog4j.shutdownHookEnabled=false -Dlog4j2.disable.jmx=true -Dlog4j.skipJansi=true -XX:+HeapDumpOnOutOfMemoryError -XX:+UnlockDiagnosticVMOptions -Xlog:gc+heap+coops=info -Des.path.home=/usr/share/elasticsearch"
+      - "MAX_LOCKED_MEMORY=unlimited"
+      - "TAKE_FILE_OWNERSHIP=true"
+      - "ES_TMPDIR=/usr/share/elasticsearch/estmp"
+      - "oom-kill-disable"
+      - cluster.name=docker-cluster
+    user: elasticsearch
+    command: >
+      /bin/bash -c "[ -e plugins_installed ] || { ./bin/elasticsearch-keystore create && echo 'AKIAUXJI7BQVUARN3V5N' | ./bin/elasticsearch-keystore add --stdin s3.client.default.access_key && echo 'uGSLYFX40X3RqhI5QFOUkQDPQs987L3YGzdhPyPZ' | ./bin/elasticsearch-keystore add --stdin s3.client.default.secret_key; ./bin/elasticsearch-plugin install analysis-icu; ./bin/elasticsearch-plugin install analysis-phonetic; touch plugins_installed; /usr/local/bin/docker-entrypoint.sh; } && { /usr/local/bin/docker-entrypoint.sh; } "
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65535
+        hard: 65535
+      nproc: 65535
+    healthcheck:
+      test: curl -fs http://10.10.10.118:9202/_cat/health || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    volumes:
+      - /opt/elastic/datanode/data:/usr/share/elasticsearch/data
+      - /opt/elastic/datanode/logs:/usr/share/elasticsearch/logs
+      - /opt/elastic/datanode/tmp:/usr/share/elasticsearch/estmp
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.5.3
+    container_name: elastic_kibana
+    network_mode: "host"
+    restart: always
+    environment:
+      SERVER_NAME: kibana.pocketbook.org
+      ELASTICSEARCH_HOSTS: '["http://10.10.10.118:9200","http://10.10.10.118:9203","http://10.10.10.118:9202"]'
+
